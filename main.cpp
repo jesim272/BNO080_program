@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 //hey jesi 11
-ok I have not idea why
+#define merge_error_for_johnny
 #include "mbed.h"
 #include "BNO080.h"
 DigitalOut led1(LED1);
