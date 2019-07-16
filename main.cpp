@@ -2,8 +2,12 @@
  * Copyright (c) 2018 ARM Limited
  * SPDX-License-Identifier: Apache-2.0
  */
+<<<<<<< HEAD
 //fjamdkfjadklfjas;ldkfjadf
 //flakdja;dkjfa;kdfjsldfjkalkdfjlsdfkjskdjf
+=======
+#define another_mergge_conflict_for_johnny
+>>>>>>> ae028f48479cacdaf5429bd82e3c9ef3232a6b3b
 #define merge_error_for_johnny
 #include "mbed.h"
 #include "BNO080.h"
