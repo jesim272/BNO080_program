@@ -9,11 +9,10 @@ DigitalOut led1(LED1);
 
 #define SLEEP_TIME                  500 // (msec)
 
-BNO080 imu;
+
 // main() runs in its own thread in the OS
 int main()
 {
-    imu.begin();
     int count = 0;
     while (true) {
         // Blink LED and wait 0.5 seconds

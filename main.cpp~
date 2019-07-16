@@ -9,7 +9,8 @@ DigitalOut led1(LED1);
 
 #define SLEEP_TIME                  500 // (msec)
 
-BNO080 imu;
+BNO080 imu; //need to pass some parameters
+
 // main() runs in its own thread in the OS
 int main()
 {
