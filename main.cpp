@@ -10,6 +10,8 @@ DigitalOut led1(LED1);
 #define SLEEP_TIME                  500 // (msec)
 
 
+BNO080::BNO080(Serial *debugPort, PinName user_SDApin, PinName user_SCLpin, PinName user_INTPin, PinName user_RSTPin,
+			   uint8_t i2cAddress, int i2cPortSpeed) :
 // main() runs in its own thread in the OS
 int main()
 {
