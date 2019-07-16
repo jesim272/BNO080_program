@@ -2,14 +2,13 @@
  * Copyright (c) 2018 ARM Limited
  * SPDX-License-Identifier: Apache-2.0
  */
-
+//hey jesi 3
 #include "mbed.h"
 #include "BNO080.h"
 DigitalOut led1(LED1);
 
 #define SLEEP_TIME                  500 // (msec)
 
-BNO080 imu; //need to pass some parameters
 
 // main() runs in its own thread in the OS
 int main()
