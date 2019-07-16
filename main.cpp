@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 //hey jesi 11
-//This should be a merge conflict
+//how is this not a merge conflict?
 #include "mbed.h"
 #include "BNO080.h"
 DigitalOut led1(LED1);
