@@ -2,7 +2,7 @@
  * Copyright (c) 2018 ARM Limited
  * SPDX-License-Identifier: Apache-2.0
  */
-//hey jesi 11
+//God damn eclipse and stm for their shitty resources
 #define merge_error_for_johnny
 #include "mbed.h"
 #include "BNO080.h"
