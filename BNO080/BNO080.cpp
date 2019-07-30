@@ -1,3 +1,6 @@
+//
+// USC RPL BNO080 driver.
+//
 
 /*
  * Overview of BNO080 Communications
@@ -63,7 +66,6 @@
 
 #include "BNO080.h"
 #include "BNO080Constants.h"
-
 /// Set to 1 to enable debug printouts.  Should be very useful if the chip is giving you trouble.
 /// When debugging, it is recommended to use the highest possible serial baudrate so as not to interrupt the timing of operations.
 #define BNO_DEBUG 0
@@ -94,6 +96,7 @@ BNO080::BNO080(Serial *debugPort, PinName user_SDApin, PinName user_SCLpin, PinN
         _i2cPortSpeed = 4000000; //BNO080 max is 400Khz
     }
     _i2cPort.frequency(_i2cPortSpeed);
+    
 
 }
 
@@ -144,11 +147,11 @@ bool BNO080::begin()
 
     // Next, officially tell it to initialize, and wait for a successful Initialize Response
     zeroBuffer();
-    shtpData[3] = 0;
     //changed from sendCommand
-    sendPacket(COMMAND_INITIALIZE, 3);
-
-
+	sendCommand(COMMAND_INITIALIZE);
+	
+	wait(0.02f);
+	
     if(!waitForPacket(CHANNEL_CONTROL, SHTP_REPORT_COMMAND_RESPONSE) || shtpData[2] != COMMAND_INITIALIZE || shtpData[5] != 0) {
         _debugPort->printf("BNO080 reports initialization failed.\n");
         __enable_irq();
@@ -332,6 +335,7 @@ bool BNO080::updateData()
         }
 
         processPacket();
+        //wait(0.002f); //added
     }
 
     // packets were received, so data may have changed
@@ -509,9 +513,8 @@ void BNO080::processPacket()
 
     } else if(shtpHeader[2] == CHANNEL_REPORTS || shtpHeader[2] == CHANNEL_WAKE_REPORTS) {
         if(shtpData[0] == SHTP_REPORT_BASE_TIMESTAMP) {
-            // sensor data packet 
-            //_debugPort->printf("\r\t\t enter pareseSensorDataPacket \r\n");
             parseSensorDataPacket();
+            
         }
     }
 }
@@ -754,7 +757,7 @@ bool BNO080::waitForPacket(int channel, uint8_t reportID, float timeout)
     Timer timeoutTimer;
     timeoutTimer.start();
 
-    while(timeoutTimer.read() <= timeout) {
+    while(timeoutTimer.read() <= 2*timeout) {
         if(_int.read() == 0) {
             if(!receivePacket(timeout)) {
                 return false;
@@ -768,7 +771,6 @@ bool BNO080::waitForPacket(int channel, uint8_t reportID, float timeout)
                 // other data packet, send to proper channels
                 _debugPort->printf("\r\t other data packets, sending to proper channel\r\n");
                 processPacket();
-                //return false;
             }
         }
     }
@@ -811,7 +813,7 @@ void BNO080::sendCommand(uint8_t command)
     shtpData[2] = command; //Command
 
     //Caller must set these
-    /*shtpData[3] = 0; //P0
+    shtpData[3] = 0; //P0
     	shtpData[4] = 0; //P1
     	shtpData[5] = 0; //P2
     	shtpData[6] = 0;
@@ -819,7 +821,7 @@ void BNO080::sendCommand(uint8_t command)
     	shtpData[8] = 0;
     	shtpData[9] = 0;
     	shtpData[10] = 0;
-    	shtpData[11] = 0;*/
+    	shtpData[11] = 0;
 
     //Transmit packet on channel 2, 12 bytes
     sendPacket(CHANNEL_CONTROL, 12);
@@ -951,51 +953,43 @@ bool BNO080::readFRSRecord(uint16_t recordID, uint32_t* readBuffer, uint16_t rea
 //Returns false if sensor does not ACK
 bool BNO080::sendPacket(uint8_t channelNumber, uint8_t dataLength)
 {
-    // start the transaction and contact the IMU
-    _i2cPort.start();
-
-    // to indicate an i2c read, shift the 7 bit address up 1 bit and keep bit 0 as a 0
-    int writeResult = _i2cPort.write(_i2cAddress << 1);
-
-    if(writeResult != 1) {
-        _debugPort->printf("BNO I2C write failed!\n");
-        _i2cPort.stop();
-        return false;
-    }
-
-
+    
     uint16_t totalLength = dataLength + 4; //Add four bytes for the header
     packetLength = dataLength;
 
-#if BNO_DEBUG
     shtpHeader[0] = totalLength & 0xFF;
     shtpHeader[1] = totalLength >> 8;
     shtpHeader[2] = channelNumber;
-    shtpHeader[3] = sequenceNumber[channelNumber];
+    shtpHeader[3] = sequenceNumber[channelNumber]++;
+#if BNO_DEBUG
 
     _debugPort->printf("Transmitting packet: ----------------\n");
     printPacket();
 #endif
     
-    //Send the 4 byte packet header
-    _i2cPort.write(totalLength & 0xFF); //Packet length LSB
-    _i2cPort.write(totalLength >> 8); //Packet length MSB
-    _i2cPort.write(channelNumber); //Channel number
-    _i2cPort.write(sequenceNumber[channelNumber]++); //Send the sequence number, increments with each packet sent, different counter for each channel
-    /*
-    char data_write[4];
-    data_write[0] = totalLength & 0xFF;
-    data_write[1] = totalLength >> 8;
-    data_write[2] = channelNumber;
-    data_write[3] = sequenceNumber[channelNumber]++;
-    _i2cPort.write(_i2cAddress << 1, data_write, 4);
-	*/
-    //Send the user's data packet
-    for (uint8_t i = 0 ; i < dataLength ; i++) {
-        _i2cPort.write(shtpData[i]);
+    readBuffer[0] = shtpHeader[0];
+    readBuffer[1] = shtpHeader[1];
+    readBuffer[2] = shtpHeader[2];
+    readBuffer[3] = shtpHeader[3];
+    
+    for(size_t index = 0; index < dataLength; ++index)
+    {
+    	readBuffer[index + 4] = shtpData[index];
     }
-    _i2cPort.stop();
-
+    
+    int writeRetval = _i2cPort.write(
+    	_i2cAddress << 1,
+    	reinterpret_cast<char*>(readBuffer),
+    	totalLength);
+    	
+    if(writeRetval < 0) 
+	{
+		_debugPort->printf("BNO I2C body write failed!\n");
+        return false;
+	}
+    
+   
+	
     return (true);
 }
 
@@ -1012,23 +1006,26 @@ bool BNO080::receivePacket(float timeout)
             return false;
         }
     }
-
-    // start the transaction and contact the IMU
-    _i2cPort.start();
-
-    // to indicate an i2c read, shift the 7 bit address up 1 bit and set bit 0 to a 1
-    int writeResult = _i2cPort.write((_i2cAddress << 1) | 0x1);
-
-    if(writeResult != 1) {
-        _debugPort->printf("BNO I2C read failed!\n");
+    
+    const size_t headerLen = 4;
+    uint8_t headerData[headerLen];
+    int readRetval = _i2cPort.read(
+    	(_i2cAddress << 1) | 0x1,
+    	reinterpret_cast<char*>(headerData),
+    	headerLen);
+    	
+    if(readRetval < 0) 
+	{
+		_debugPort->printf("BNO I2C header read failed!\n");
         return false;
-    }
+	}
+
 
     //Get the first four bytes, aka the packet header
-    uint8_t packetLSB = static_cast<uint8_t>(_i2cPort.read(true));
-    uint8_t packetMSB = static_cast<uint8_t>(_i2cPort.read(true));
-    uint8_t channelNumber = static_cast<uint8_t>(_i2cPort.read(true));
-    uint8_t sequenceNum = static_cast<uint8_t>(_i2cPort.read(true)); //Not sure if we need to store this or not
+    uint8_t packetLSB = headerData[0];
+    uint8_t packetMSB = headerData[1];
+    uint8_t channelNumber = headerData[2];
+    uint8_t sequenceNum = headerData[3]; //Not sure if we need to store this or not
 
     //Store the header info
     shtpHeader[0] = packetLSB;
@@ -1039,9 +1036,6 @@ bool BNO080::receivePacket(float timeout)
     if(shtpHeader[0] == 0xFF && shtpHeader[1] == 0xFF) {
         // invalid according to BNO080 datasheet section 1.4.1
 
-#if BNO_DEBUG
-        _debugPort->printf("Recieved 0xFFFF packet length, protocol error!\n");
-#endif
         _debugPort->printf("Recieved 0xFFFF packet length, protocol error!\n");
         return false;
     }
@@ -1059,26 +1053,36 @@ bool BNO080::receivePacket(float timeout)
         // Packet is empty
         return (false); //All done
     }
+    else if(packetLength > READ_BUFFER_SIZE)
+    {
+    	return false; // read buffer too small
+    }
 
-    packetLength -= 4; //Remove the header bytes from the data count
+    packetLength -= headerLen; //Remove the header bytes from the data count
+    
+    readRetval = _i2cPort.read(
+    	(_i2cAddress << 1) | 0x1,
+    	reinterpret_cast<char*>(readBuffer),
+    	packetLength + headerLen,
+    	false);
+    	
+    if(readRetval < 0) 
+	{
+		_debugPort->printf("BNO I2C body read failed!\n");
+        return false;
+	}
 
     //Read incoming data into the shtpData array
     for (uint16_t dataSpot = 0 ; dataSpot < packetLength ; dataSpot++) {
-        bool sendACK = dataSpot < packetLength - 1;
 
-        // per the datasheet, 0xFF is used as filler for the receiver to transmit back
-        uint8_t incoming = static_cast<uint8_t>(_i2cPort.read(sendACK));
         if (dataSpot < STORED_PACKET_SIZE) //BNO080 can respond with upto 270 bytes, avoid overflow
-            shtpData[dataSpot] = incoming; //Store data into the shtpData array
+            shtpData[dataSpot] = readBuffer[dataSpot + headerLen]; //Store data into the shtpData array
     }
-
-    _i2cPort.stop();
 
 #if BNO_DEBUG
     _debugPort->printf("Recieved packet: ----------------\n");
     printPacket(); // note: add 4 for the header length
 #endif
-	//_debugPort->printf("\r\t\t\t We're done!\r\n");
     return (true); //We're done!
 }
 
@@ -1137,7 +1141,7 @@ void BNO080::zeroBuffer()
 bool BNO080::loadReportMetadata(BNO080::Report report)
 {
     uint16_t reportMetaRecord;
-
+    
     // first, convert the report into the correct FRS record ID for that report's metadata
     // data from SH-2 section 5.1
     switch(report) {
