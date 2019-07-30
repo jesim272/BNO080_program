@@ -24,6 +24,7 @@
 #include <mbed.h>
 #include <quaternion.h>
 
+
 #include "BNO080Constants.h"
 
 // useful define when working with orientation quaternions
@@ -44,8 +45,10 @@ class BNO080
 	/**
 	 * I2C port object.  Provides physical layer communications with the chip.
 	 */
+	 
 	I2C _i2cPort;
-
+	//SoftI2C _i2cPort;
+	
 	/// user defined port speed
 	int  _i2cPortSpeed;
 
@@ -74,6 +77,9 @@ class BNO080
 	/// rarely get over a hundred bytes unless you have a million sensor reports enabled.
 	/// The only long packets we actually care about are batched sensor data packets.
 	uint8_t shtpData[STORED_PACKET_SIZE];
+	
+	#define READ_BUFFER_SIZE 512
+	uint8_t readBuffer[READ_BUFFER_SIZE];
 
 	/// Length of packet that was received into buffer.  Does NOT include header bytes.
 	uint16_t packetLength;
